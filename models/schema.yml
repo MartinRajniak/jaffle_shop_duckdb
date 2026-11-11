@@ -26,6 +26,11 @@ models:
       - name: number_of_orders
         description: Count of the number of orders a customer has placed
 
+      - name: is_repeat_customer
+        description: True if the customer has placed more than one order
+        tests:
+          - not_null
+
       - name: total_order_amount
         description: Total value (AUD) of a customer's orders
 
