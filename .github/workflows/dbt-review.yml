@@ -1,0 +1,39 @@
+name: dbt-review
+
+# Reviews every pull request into duckdb with dbt-review (https://github.com/MartinRajniak/dbt-review).
+# The job fails when the review finds an error (exit 1) or cannot review (exit 2).
+on:
+  pull_request:
+    branches: [duckdb] # never pull_request_target: the change under review is untrusted
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # --base needs the history
+
+      - uses: astral-sh/setup-uv@v10.3.3
+
+      - name: dbt parse (writes target/manifest.json, no database needed)
+        run: uvx --from dbt-duckdb dbt parse
+
+      - name: Review
+        env:
+          # Read access to the tool's repository while it is private; drop it once the repository is public.
+          DBT_REVIEW_TOKEN: ${{ secrets.DBT_REVIEW_TOKEN }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          tool="git+https://x-access-token:${DBT_REVIEW_TOKEN}@github.com/MartinRajniak/dbt-review@main"
+          uvx --from "$tool" dbt-review --help > /dev/null # install once, outside the timed review
+          set +e
+          uvx --from "$tool" dbt-review --base origin/duckdb > review.txt 2>&1
+          code=$?
+          set -e
+          cat review.txt
+          { echo '```'; cat review.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $code
